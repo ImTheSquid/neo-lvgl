@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["neo-lvgl-sys", "neo-lvgl"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/example/lvgl-neo"
+
+[workspace.dependencies]
+neo-lvgl-sys = { path = "neo-lvgl-sys" }
+cty = "0.2"
+bitflags = "2.6"
+embedded-graphics-core = "0.4"

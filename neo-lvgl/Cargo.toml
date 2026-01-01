@@ -1,0 +1,30 @@
+[package]
+name = "neo-lvgl"
+description = "Safe, idiomatic Rust bindings for LVGL 9.x graphics library"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+neo-lvgl-sys.workspace = true
+cty.workspace = true
+bitflags.workspace = true
+embedded-graphics-core = { workspace = true, optional = true }
+
+[features]
+default = ["widgets-core"]
+
+# Display backend integrations
+embedded-graphics = ["dep:embedded-graphics-core"]
+
+# Widget sets
+widgets-core = []
+widgets-extra = ["widgets-core"]
+
+# Memory features
+alloc = []
+std = ["alloc"]
+
+# Unsafe escape hatches
+unsafe-api = []

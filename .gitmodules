@@ -1,0 +1,3 @@
+[submodule "neo-lvgl-sys/lvgl"]
+	path = neo-lvgl-sys/lvgl
+	url = https://github.com/lvgl/lvgl.git
