@@ -15,7 +15,7 @@
 
 // Core types
 pub use crate::color::Color;
-pub use crate::display::{Display, DisplayDriver};
+pub use crate::display::{ColorFormat, Display, DisplayDriver};
 pub use crate::style::{Style, StyleSelector};
 
 // Widgets

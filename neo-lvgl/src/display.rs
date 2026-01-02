@@ -94,6 +94,22 @@ impl Display {
     pub fn height(&self) -> i32 {
         unsafe { neo_lvgl_sys::lv_display_get_vertical_resolution(self.raw.as_ptr()) }
     }
+
+    /// Set the color format for this display.
+    ///
+    /// This determines how pixels are encoded in the display buffers.
+    /// The default is ARGB8888.
+    pub fn set_color_format(&self, format: ColorFormat) {
+        unsafe {
+            neo_lvgl_sys::lv_display_set_color_format(self.raw.as_ptr(), format.to_raw());
+        }
+    }
+
+    /// Get the current color format for this display.
+    pub fn color_format(&self) -> ColorFormat {
+        let raw = unsafe { neo_lvgl_sys::lv_display_get_color_format(self.raw.as_ptr()) };
+        ColorFormat::from_raw(raw)
+    }
 }
 
 impl Drop for Display {
@@ -128,6 +144,103 @@ impl RenderMode {
 impl Default for RenderMode {
     fn default() -> Self {
         RenderMode::Partial
+    }
+}
+
+/// Display color format
+///
+/// Determines how pixels are encoded in display buffers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColorFormat {
+    /// 8-bit grayscale
+    L8,
+    /// 1-bit alpha
+    A1,
+    /// 2-bit alpha
+    A2,
+    /// 4-bit alpha
+    A4,
+    /// 8-bit alpha
+    A8,
+    /// 1-bit indexed color (palette)
+    I1,
+    /// 2-bit indexed color (palette)
+    I2,
+    /// 4-bit indexed color (palette)
+    I4,
+    /// 8-bit indexed color (palette)
+    I8,
+    /// 16-bit RGB (5-6-5)
+    Rgb565,
+    /// 16-bit RGB (5-6-5) with byte-swapped pixels
+    Rgb565Swapped,
+    /// 24-bit RGB (8-8-8)
+    Rgb888,
+    /// 32-bit ARGB (8-8-8-8)
+    Argb8888,
+    /// 32-bit XRGB (8-8-8-8, alpha ignored)
+    Xrgb8888,
+}
+
+impl ColorFormat {
+    fn to_raw(self) -> neo_lvgl_sys::lv_color_format_t {
+        match self {
+            ColorFormat::L8 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_L8,
+            ColorFormat::A1 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_A1,
+            ColorFormat::A2 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_A2,
+            ColorFormat::A4 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_A4,
+            ColorFormat::A8 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_A8,
+            ColorFormat::I1 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I1,
+            ColorFormat::I2 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I2,
+            ColorFormat::I4 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I4,
+            ColorFormat::I8 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I8,
+            ColorFormat::Rgb565 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB565,
+            ColorFormat::Rgb565Swapped => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB565_SWAPPED,
+            ColorFormat::Rgb888 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB888,
+            ColorFormat::Argb8888 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_ARGB8888,
+            ColorFormat::Xrgb8888 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_XRGB8888,
+        }
+    }
+
+    fn from_raw(raw: neo_lvgl_sys::lv_color_format_t) -> Self {
+        match raw {
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_L8 => ColorFormat::L8,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_A1 => ColorFormat::A1,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_A2 => ColorFormat::A2,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_A4 => ColorFormat::A4,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_A8 => ColorFormat::A8,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I1 => ColorFormat::I1,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I2 => ColorFormat::I2,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I4 => ColorFormat::I4,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I8 => ColorFormat::I8,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB565 => ColorFormat::Rgb565,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB565_SWAPPED => ColorFormat::Rgb565Swapped,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB888 => ColorFormat::Rgb888,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_XRGB8888 => ColorFormat::Xrgb8888,
+            _ => ColorFormat::Argb8888, // Default fallback
+        }
+    }
+
+    /// Get the number of bytes per pixel for this format.
+    ///
+    /// Note: For sub-byte formats (A1, A2, A4, I1, I2, I4), this returns 1
+    /// as the minimum addressable unit, though actual bits per pixel is less.
+    pub fn bytes_per_pixel(&self) -> usize {
+        match self {
+            ColorFormat::A1 | ColorFormat::I1 => 1,
+            ColorFormat::A2 | ColorFormat::I2 => 1,
+            ColorFormat::A4 | ColorFormat::I4 => 1,
+            ColorFormat::L8 | ColorFormat::A8 | ColorFormat::I8 => 1,
+            ColorFormat::Rgb565 | ColorFormat::Rgb565Swapped => 2,
+            ColorFormat::Rgb888 => 3,
+            ColorFormat::Argb8888 | ColorFormat::Xrgb8888 => 4,
+        }
+    }
+}
+
+impl Default for ColorFormat {
+    fn default() -> Self {
+        ColorFormat::Argb8888
     }
 }
 

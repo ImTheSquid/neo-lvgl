@@ -37,7 +37,6 @@ extern crate alloc;
 pub mod anim;
 pub mod color;
 pub mod display;
-pub mod drivers;
 pub mod event;
 pub mod font;
 pub mod group;
