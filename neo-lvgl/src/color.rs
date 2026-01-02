@@ -39,6 +39,18 @@ impl Color {
     pub(crate) fn raw(self) -> neo_lvgl_sys::lv_color_t {
         self.0
     }
+
+    /// Get the raw LVGL color value (alias for raw)
+    #[inline]
+    pub(crate) fn to_raw(self) -> neo_lvgl_sys::lv_color_t {
+        self.0
+    }
+
+    /// Create from raw LVGL color value
+    #[inline]
+    pub(crate) fn from_raw(raw: neo_lvgl_sys::lv_color_t) -> Self {
+        Self(raw)
+    }
 }
 
 impl Default for Color {
@@ -87,6 +99,12 @@ impl Opacity {
     /// Get the raw value
     #[inline]
     pub(crate) fn raw(self) -> u8 {
+        self.0
+    }
+
+    /// Get the raw value (alias for raw)
+    #[inline]
+    pub(crate) fn to_raw(self) -> u8 {
         self.0
     }
 }

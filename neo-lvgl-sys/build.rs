@@ -65,7 +65,8 @@ fn main() {
         // Layout hints
         .layout_tests(false)
         .derive_default(true)
-        .derive_debug(false);
+        .derive_debug(false)
+;
 
     // Add target-specific clang arguments
     let target = env::var("TARGET").unwrap_or_default();

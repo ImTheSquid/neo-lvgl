@@ -7,11 +7,40 @@
 //! - `Screen` - The root widget for a display
 //! - Specific widget types: `Button`, `Label`, etc.
 
+mod arc;
+mod bar;
 mod button;
+mod buttonmatrix;
+mod canvas;
+mod checkbox;
+mod dropdown;
+mod image;
+mod imagebutton;
 mod label;
+mod line;
+mod roller;
+mod slider;
+mod switch;
+mod textarea;
 
+#[cfg(feature = "widgets-extra")]
+pub mod extra;
+
+pub use arc::{Arc, ArcMode};
+pub use bar::{Bar, BarMode, BarOrientation};
 pub use button::Button;
+pub use buttonmatrix::{ButtonMatrix, ButtonMatrixCtrl, BUTTON_NONE};
+pub use canvas::{Canvas, ColorFormat};
+pub use checkbox::Checkbox;
+pub use dropdown::{Dropdown, DropdownDir, OptionPos};
+pub use image::{Image, ImageAlign, Rotation, Scale};
+pub use imagebutton::{ImageButton, ImageButtonState};
 pub use label::Label;
+pub use line::{Line, Point};
+pub use roller::{Roller, RollerMode};
+pub use slider::{Slider, SliderMode, SliderOrientation};
+pub use switch::{Switch, SwitchOrientation};
+pub use textarea::{CursorPos, TextArea};
 
 use crate::event::EventHandler;
 use crate::style::{Style, StyleSelector};
@@ -31,12 +60,27 @@ pub const SIZE_CONTENT: i32 = neo_lvgl_sys::LV_COORD_MAX as i32 | (1 << 29);
 /// LVGL manages widget memory internally. When a parent widget is deleted,
 /// all its children are automatically deleted. Rust lifetimes help prevent
 /// dangling references, but users must be careful with dynamic widget deletion.
+///
+/// # Copy Semantics
+///
+/// `Obj` is `Copy` because it's just a pointer wrapper. Copying an `Obj` creates
+/// another reference to the same underlying LVGL object - they are not independent.
+/// This matches how LVGL itself treats object pointers.
+#[derive(Clone, Copy)]
 pub struct Obj<'a> {
     raw: NonNull<neo_lvgl_sys::lv_obj_t>,
     _lifetime: PhantomData<&'a ()>,
 }
 
 impl<'a> Obj<'a> {
+    /// Create a new object as a child of the given parent
+    pub fn new(parent: &'a impl Widget<'a>) -> Option<Self> {
+        unsafe {
+            let ptr = neo_lvgl_sys::lv_obj_create(parent.raw());
+            Self::from_raw(ptr)
+        }
+    }
+
     /// Create from raw pointer
     ///
     /// # Safety
@@ -316,6 +360,7 @@ pub trait Widget<'a>: EventHandler {
 }
 
 /// Screen widget (root of the widget tree)
+#[derive(Clone, Copy)]
 pub struct Screen<'a> {
     obj: Obj<'a>,
 }
@@ -531,3 +576,5 @@ impl ScreenLoadAnim {
         }
     }
 }
+
+// Implement FromObj for Screen

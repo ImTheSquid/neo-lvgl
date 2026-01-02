@@ -16,6 +16,7 @@ use core::ffi::CStr;
 /// label.set_text(c"Hello, World!");
 /// label.center();
 /// ```
+#[derive(Clone, Copy)]
 pub struct Label<'a> {
     obj: Obj<'a>,
 }
@@ -27,6 +28,13 @@ impl<'a> Label<'a> {
             let ptr = neo_lvgl_sys::lv_label_create(parent.raw());
             Obj::from_raw(ptr).map(|obj| Self { obj })
         }
+    }
+
+    /// Create a Label from an existing Obj
+    ///
+    /// This is used internally when getting a label from another widget.
+    pub(crate) fn from_obj(obj: Obj<'a>) -> Self {
+        Self { obj }
     }
 
     /// Set the label text.
@@ -118,8 +126,32 @@ impl EventHandler for Label<'_> {
     }
 }
 
-#[cfg(feature = "alloc")]
-impl<'a> crate::event::ClosureEventHandler for Label<'a> {}
+
+impl<'a> Label<'a> {
+    /// Bind this label's text to a subject with a format string
+    ///
+    /// The format string uses printf-style formatting (e.g., "Value: %d").
+    /// When the subject changes, the label text updates automatically.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let mut value = IntSubject::new(42);
+    /// label.bind_text(&mut value, c"Count: %d");
+    /// // Label will show "Count: 42"
+    /// ```
+    pub fn bind_text(
+        &self,
+        subject: &mut impl crate::observer::Subject,
+        fmt: &core::ffi::CStr,
+    ) -> Option<crate::observer::Observer> {
+        unsafe {
+            let ptr =
+                neo_lvgl_sys::lv_label_bind_text(self.obj.raw(), subject.raw(), fmt.as_ptr().cast());
+            crate::observer::Observer::from_raw(ptr)
+        }
+    }
+}
 
 /// Label long mode - how to handle text that doesn't fit
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

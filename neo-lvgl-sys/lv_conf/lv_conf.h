@@ -179,9 +179,13 @@
 #define LV_USE_FONT_SUBPX       0
 #define LV_USE_FONT_PLACEHOLDER 1
 
-/* FreeType/TinyTTF - disabled */
+/* FreeType/TinyTTF - TinyTTF enabled for runtime font loading */
 #define LV_USE_FREETYPE 0
-#define LV_USE_TINY_TTF 0
+#define LV_USE_TINY_TTF 1
+#if LV_USE_TINY_TTF
+    #define LV_TINY_TTF_FILE_SUPPORT 1
+    #define LV_TINY_TTF_CACHE_GLYPH_CNT 256
+#endif
 
 /*=======================
  *  TEXT CONFIGURATION
@@ -227,25 +231,35 @@
     #define LV_TEXTAREA_DEF_PWD_SHOW_TIME 1500
 #endif
 
-/* Extra widgets - disabled by default for smaller binary */
-#define LV_USE_ANIMIMG    0
+/* Extra widgets - enabled for Rust bindings (gated by Cargo features) */
+#define LV_USE_ANIMIMG    1
 #define LV_USE_ARCLABEL   0
-#define LV_USE_CALENDAR   0
-#define LV_USE_CHART      0
-#define LV_USE_KEYBOARD   0
-#define LV_USE_LED        0
-#define LV_USE_LIST       0
+#define LV_USE_CALENDAR   1
+#if LV_USE_CALENDAR
+    #define LV_CALENDAR_WEEK_STARTS_MONDAY 0
+    #define LV_CALENDAR_DEFAULT_DAY_NAMES {"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
+    #define LV_CALENDAR_DEFAULT_MONTH_NAMES {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
+    #define LV_USE_CALENDAR_HEADER_ARROW 1
+    #define LV_USE_CALENDAR_HEADER_DROPDOWN 1
+#endif
+#define LV_USE_CHART      1
+#define LV_USE_KEYBOARD   1
+#define LV_USE_LED        1
+#define LV_USE_LIST       1
 #define LV_USE_LOTTIE     0
-#define LV_USE_MENU       0
-#define LV_USE_MSGBOX     0
-#define LV_USE_SCALE      0
-#define LV_USE_SPAN       0
-#define LV_USE_SPINBOX    0
-#define LV_USE_SPINNER    0
-#define LV_USE_TABLE      0
-#define LV_USE_TABVIEW    0
-#define LV_USE_TILEVIEW   0
-#define LV_USE_WIN        0
+#define LV_USE_MENU       1
+#define LV_USE_MSGBOX     1
+#define LV_USE_SCALE      1
+#define LV_USE_SPAN       1
+#if LV_USE_SPAN
+    #define LV_SPAN_SNIPPET_STACK_SIZE 64
+#endif
+#define LV_USE_SPINBOX    1
+#define LV_USE_SPINNER    1
+#define LV_USE_TABLE      1
+#define LV_USE_TABVIEW    1
+#define LV_USE_TILEVIEW   1
+#define LV_USE_WIN        1
 #define LV_USE_3DTEXTURE  0
 
 /*==================
@@ -299,7 +313,12 @@
 #define LV_USE_LIBWEBP 0
 
 #define LV_USE_IME_PINYIN 0
-#define LV_USE_XML 0
+
+/* Enable widget names (required for XML) */
+#define LV_USE_OBJ_NAME 1
+
+/* Enable loading XML UIs at runtime */
+#define LV_USE_XML 1
 #define LV_USE_NEMA_GFX 0
 #define LV_USE_NEMA_VG 0
 

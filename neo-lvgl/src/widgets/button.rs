@@ -17,6 +17,7 @@ use crate::event::EventHandler;
 /// let label = Label::new(&btn).unwrap();
 /// label.set_text(c"Click me!");
 /// ```
+#[derive(Clone, Copy)]
 pub struct Button<'a> {
     obj: Obj<'a>,
 }
@@ -48,5 +49,4 @@ impl EventHandler for Button<'_> {
     }
 }
 
-#[cfg(feature = "alloc")]
-impl<'a> crate::event::ClosureEventHandler for Button<'a> {}
+

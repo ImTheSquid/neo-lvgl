@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use lvgl::{Display, Button, Label, Widget};
+//! use lvgl::prelude::*;
 //!
 //! // Initialize LVGL
 //! lvgl::init();
@@ -30,28 +30,27 @@
 //! ```
 
 #![no_std]
-#![cfg_attr(feature = "alloc", feature(alloc))]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+pub mod anim;
 pub mod color;
 pub mod display;
 pub mod drivers;
 pub mod event;
+pub mod font;
+pub mod group;
+pub mod indev;
+pub mod layout;
+pub mod observer;
+pub mod prelude;
+pub mod scroll;
 pub mod style;
+pub mod sync;
+pub mod timer;
 pub mod widgets;
-
-mod core;
-
-pub use color::Color;
-pub use display::{Display, DisplayDriver};
-pub use event::{Event, EventCode};
-pub use style::{Style, StyleSelector};
-pub use widgets::{Obj, Widget};
-
-// Re-export core widget types
-pub use widgets::{Button, Label};
+pub mod xml;
 
 /// Initialize LVGL.
 ///
