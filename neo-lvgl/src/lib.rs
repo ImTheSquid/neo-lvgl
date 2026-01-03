@@ -6,7 +6,6 @@
 //! # Features
 //!
 //! - `alloc` - Enable closure-based event handlers (requires allocator)
-//! - `embedded-graphics` - Integration with the embedded-graphics ecosystem
 //! - `widgets-core` - Core widgets (Button, Label, etc.) - enabled by default
 //! - `widgets-extra` - Additional widgets (Chart, Calendar, etc.)
 //!

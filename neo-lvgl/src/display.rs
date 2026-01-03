@@ -2,6 +2,13 @@
 
 use core::ptr::NonNull;
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 /// LVGL display
 pub struct Display {
     raw: NonNull<neo_lvgl_sys::lv_display_t>,
@@ -121,9 +128,10 @@ impl Drop for Display {
 }
 
 /// Display render mode
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum RenderMode {
     /// Partial rendering - only changed areas are redrawn
+    #[default]
     Partial,
     /// Direct rendering - buffer represents the full screen
     Direct,
@@ -134,23 +142,21 @@ pub enum RenderMode {
 impl RenderMode {
     fn to_raw(self) -> neo_lvgl_sys::lv_display_render_mode_t {
         match self {
-            RenderMode::Partial => neo_lvgl_sys::lv_display_render_mode_t_LV_DISPLAY_RENDER_MODE_PARTIAL,
-            RenderMode::Direct => neo_lvgl_sys::lv_display_render_mode_t_LV_DISPLAY_RENDER_MODE_DIRECT,
+            RenderMode::Partial => {
+                neo_lvgl_sys::lv_display_render_mode_t_LV_DISPLAY_RENDER_MODE_PARTIAL
+            }
+            RenderMode::Direct => {
+                neo_lvgl_sys::lv_display_render_mode_t_LV_DISPLAY_RENDER_MODE_DIRECT
+            }
             RenderMode::Full => neo_lvgl_sys::lv_display_render_mode_t_LV_DISPLAY_RENDER_MODE_FULL,
         }
-    }
-}
-
-impl Default for RenderMode {
-    fn default() -> Self {
-        RenderMode::Partial
     }
 }
 
 /// Display color format
 ///
 /// Determines how pixels are encoded in display buffers.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ColorFormat {
     /// 8-bit grayscale
     L8,
@@ -177,6 +183,7 @@ pub enum ColorFormat {
     /// 24-bit RGB (8-8-8)
     Rgb888,
     /// 32-bit ARGB (8-8-8-8)
+    #[default]
     Argb8888,
     /// 32-bit XRGB (8-8-8-8, alpha ignored)
     Xrgb8888,
@@ -195,7 +202,9 @@ impl ColorFormat {
             ColorFormat::I4 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I4,
             ColorFormat::I8 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I8,
             ColorFormat::Rgb565 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB565,
-            ColorFormat::Rgb565Swapped => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB565_SWAPPED,
+            ColorFormat::Rgb565Swapped => {
+                neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB565_SWAPPED
+            }
             ColorFormat::Rgb888 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB888,
             ColorFormat::Argb8888 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_ARGB8888,
             ColorFormat::Xrgb8888 => neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_XRGB8888,
@@ -214,7 +223,9 @@ impl ColorFormat {
             neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I4 => ColorFormat::I4,
             neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_I8 => ColorFormat::I8,
             neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB565 => ColorFormat::Rgb565,
-            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB565_SWAPPED => ColorFormat::Rgb565Swapped,
+            neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB565_SWAPPED => {
+                ColorFormat::Rgb565Swapped
+            }
             neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_RGB888 => ColorFormat::Rgb888,
             neo_lvgl_sys::lv_color_format_t_LV_COLOR_FORMAT_XRGB8888 => ColorFormat::Xrgb8888,
             _ => ColorFormat::Argb8888, // Default fallback
@@ -235,12 +246,6 @@ impl ColorFormat {
             ColorFormat::Rgb888 => 3,
             ColorFormat::Argb8888 | ColorFormat::Xrgb8888 => 4,
         }
-    }
-}
-
-impl Default for ColorFormat {
-    fn default() -> Self {
-        ColorFormat::Argb8888
     }
 }
 
@@ -304,5 +309,273 @@ impl Area {
     #[inline]
     pub fn pixel_count(&self) -> usize {
         (self.width() as usize) * (self.height() as usize)
+    }
+}
+
+/// A display that owns its driver and manages the flush callback automatically.
+///
+/// This is the recommended way to use custom display drivers. It handles all the
+/// unsafe callback wiring internally.
+///
+/// # Example
+///
+/// ```ignore
+/// struct MyDriver {
+///     // your display hardware state
+/// }
+///
+/// impl DisplayDriver for MyDriver {
+///     fn size(&self) -> (i32, i32) {
+///         (320, 240)
+///     }
+///
+///     fn flush(&mut self, area: &Area, pixels: &[u8]) {
+///         // Send pixels to your display hardware
+///     }
+/// }
+///
+/// // Easy way - let ManagedDisplay create and manage buffers
+/// let driver = MyDriver { /* ... */ };
+/// let display = ManagedDisplay::with_buffers(
+///     driver,
+///     ColorFormat::Rgb565,
+///     RenderMode::Partial,
+///     false, // single buffer
+/// ).unwrap();
+///
+/// // Or with static buffers you manage yourself
+/// let display = unsafe {
+///     ManagedDisplay::from_static_buffers(driver, &mut buf1, None, RenderMode::Partial)
+/// };
+/// ```
+#[cfg(feature = "alloc")]
+pub struct ManagedDisplay<D: DisplayDriver> {
+    display: Display,
+    // Boxed so we have a stable address for the pointer stored in user_data
+    driver: Box<D>,
+    // Optional owned buffers (when using with_buffers constructor)
+    _buf1: Option<Vec<u8>>,
+    _buf2: Option<Vec<u8>>,
+}
+
+#[cfg(feature = "alloc")]
+impl<D: DisplayDriver> ManagedDisplay<D> {
+    /// Create a managed display that allocates and owns its buffers.
+    ///
+    /// This is the easiest way to create a display - just provide your driver
+    /// and the display will manage everything else.
+    ///
+    /// # Arguments
+    ///
+    /// * `driver` - Your display driver implementation
+    /// * `color_format` - The pixel format for the buffers
+    /// * `render_mode` - The rendering mode to use
+    /// * `double_buffer` - Whether to use double buffering (smoother but uses 2x memory)
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let display = ManagedDisplay::with_buffers(
+    ///     my_driver,
+    ///     ColorFormat::Rgb565,
+    ///     RenderMode::Partial,
+    ///     false,
+    /// ).unwrap();
+    /// ```
+    pub fn with_buffers(
+        driver: D,
+        color_format: ColorFormat,
+        render_mode: RenderMode,
+        double_buffer: bool,
+    ) -> Option<Self> {
+        let (width, height) = driver.size();
+        let display = Display::new(width, height)?;
+
+        // Calculate buffer size
+        let buf_size = (width as usize) * (height as usize) * color_format.bytes_per_pixel();
+
+        // Allocate buffers
+        let mut buf1 = alloc::vec![0u8; buf_size];
+        let mut buf2 = if double_buffer {
+            Some(alloc::vec![0u8; buf_size])
+        } else {
+            None
+        };
+
+        // Box the driver so it has a stable address
+        let driver = Box::new(driver);
+
+        // Store pointer to driver in display's user_data
+        let driver_ptr = &*driver as *const D as *mut core::ffi::c_void;
+        unsafe {
+            neo_lvgl_sys::lv_display_set_user_data(display.raw(), driver_ptr);
+        }
+
+        // Set up buffers - we pass raw pointers since we're keeping the Vecs alive
+        let buf2_ptr = buf2
+            .as_mut()
+            .map(|b| b.as_mut_ptr())
+            .unwrap_or(core::ptr::null_mut());
+        unsafe {
+            neo_lvgl_sys::lv_display_set_buffers(
+                display.raw(),
+                buf1.as_mut_ptr() as *mut _,
+                buf2_ptr as *mut _,
+                buf_size as u32,
+                render_mode.to_raw(),
+            );
+        }
+
+        // Set color format
+        display.set_color_format(color_format);
+
+        // Set up the flush callback trampoline
+        unsafe {
+            neo_lvgl_sys::lv_display_set_flush_cb(display.raw(), Some(Self::flush_trampoline));
+        }
+
+        Some(Self {
+            display,
+            driver,
+            _buf1: Some(buf1),
+            _buf2: buf2,
+        })
+    }
+
+    /// Create a managed display with static buffers you provide.
+    ///
+    /// Use this when you need precise control over buffer allocation,
+    /// such as placing buffers in specific memory regions (DMA-capable, etc.).
+    ///
+    /// # Arguments
+    ///
+    /// * `driver` - Your display driver implementation
+    /// * `buf1` - Primary render buffer
+    /// * `buf2` - Optional secondary buffer for double-buffering
+    /// * `render_mode` - The rendering mode to use
+    ///
+    /// # Safety
+    ///
+    /// The buffers must remain valid for the lifetime of the display.
+    pub unsafe fn from_static_buffers(
+        driver: D,
+        buf1: &'static mut [u8],
+        buf2: Option<&'static mut [u8]>,
+        render_mode: RenderMode,
+    ) -> Option<Self> {
+        let (width, height) = driver.size();
+        let display = Display::new(width, height)?;
+
+        // Box the driver so it has a stable address
+        let driver = Box::new(driver);
+
+        // Store pointer to driver in display's user_data
+        let driver_ptr = &*driver as *const D as *mut core::ffi::c_void;
+        neo_lvgl_sys::lv_display_set_user_data(display.raw(), driver_ptr);
+
+        // Set up buffers
+        display.set_buffers(buf1, buf2, render_mode);
+
+        // Set up the flush callback trampoline
+        neo_lvgl_sys::lv_display_set_flush_cb(display.raw(), Some(Self::flush_trampoline));
+
+        Some(Self {
+            display,
+            driver,
+            _buf1: None,
+            _buf2: None,
+        })
+    }
+
+    /// Create a managed display with static buffers and a specific color format.
+    ///
+    /// # Safety
+    ///
+    /// The buffers must remain valid for the lifetime of the display.
+    pub unsafe fn from_static_buffers_with_format(
+        driver: D,
+        buf1: &'static mut [u8],
+        buf2: Option<&'static mut [u8]>,
+        render_mode: RenderMode,
+        color_format: ColorFormat,
+    ) -> Option<Self> {
+        let managed = Self::from_static_buffers(driver, buf1, buf2, render_mode)?;
+        managed.display.set_color_format(color_format);
+        Some(managed)
+    }
+
+    /// Get a reference to the underlying display.
+    pub fn display(&self) -> &Display {
+        &self.display
+    }
+
+    /// Get a reference to the driver.
+    pub fn driver(&self) -> &D {
+        &self.driver
+    }
+
+    /// Get a mutable reference to the driver.
+    pub fn driver_mut(&mut self) -> &mut D {
+        &mut self.driver
+    }
+
+    /// Set this display as the default.
+    pub fn set_default(&self) {
+        self.display.set_default();
+    }
+
+    /// Get the currently active screen for this display.
+    pub fn active_screen(&self) -> crate::widgets::Screen<'_> {
+        self.display.active_screen()
+    }
+
+    /// Get display width.
+    pub fn width(&self) -> i32 {
+        self.display.width()
+    }
+
+    /// Get display height.
+    pub fn height(&self) -> i32 {
+        self.display.height()
+    }
+
+    /// Set the color format.
+    pub fn set_color_format(&self, format: ColorFormat) {
+        self.display.set_color_format(format);
+    }
+
+    /// Get the current color format.
+    pub fn color_format(&self) -> ColorFormat {
+        self.display.color_format()
+    }
+
+    /// The C trampoline that calls our Rust driver
+    unsafe extern "C" fn flush_trampoline(
+        disp: *mut neo_lvgl_sys::lv_display_t,
+        area: *const neo_lvgl_sys::lv_area_t,
+        px_map: *mut u8,
+    ) {
+        // Get driver pointer from user_data
+        let driver_ptr = neo_lvgl_sys::lv_display_get_user_data(disp) as *mut D;
+        if driver_ptr.is_null() {
+            return;
+        }
+
+        let driver = &mut *driver_ptr;
+        let area_ref = &*area;
+        let rust_area = Area::from_raw(area_ref);
+
+        // Calculate buffer size based on area and color format
+        let color_format = ColorFormat::from_raw(neo_lvgl_sys::lv_display_get_color_format(disp));
+        let pixel_count = rust_area.pixel_count();
+        let buf_size = pixel_count * color_format.bytes_per_pixel();
+
+        let pixels = core::slice::from_raw_parts(px_map, buf_size);
+
+        // Call the Rust driver
+        driver.flush(&rust_area, pixels);
+
+        // Signal flush complete
+        neo_lvgl_sys::lv_display_flush_ready(disp);
     }
 }

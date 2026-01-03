@@ -15,7 +15,9 @@
 
 // Core types
 pub use crate::color::Color;
-pub use crate::display::{ColorFormat, Display, DisplayDriver};
+pub use crate::display::{Area, ColorFormat, Display, DisplayDriver, RenderMode};
+#[cfg(feature = "alloc")]
+pub use crate::display::ManagedDisplay;
 pub use crate::style::{Style, StyleSelector};
 
 // Widgets

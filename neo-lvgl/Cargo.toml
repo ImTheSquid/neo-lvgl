@@ -10,13 +10,9 @@ repository.workspace = true
 neo-lvgl-sys.workspace = true
 cty.workspace = true
 bitflags.workspace = true
-embedded-graphics-core = { workspace = true, optional = true }
 
 [features]
 default = ["widgets-core"]
-
-# Display backend integrations
-embedded-graphics = ["dep:embedded-graphics-core"]
 
 # Widget sets
 widgets-core = []

@@ -40,11 +40,54 @@ fn main() {
         build.opt_level_str("s");
     }
 
+    // Xtensa requires -mlongcalls for large code (LVGL is big)
+    if target.contains("xtensa") {
+        build.flag("-mlongcalls");
+    }
+
+    // For ESP-IDF targets, we need to use the ESP toolchain compiler
+    if target.contains("espidf") {
+        // Try multiple ways to find the cross-compiler
+        let compiler = find_esp_compiler(&target);
+        if let Some(cc) = compiler {
+            eprintln!("neo-lvgl-sys: Using compiler: {}", cc);
+            build.compiler(&cc);
+
+            // Also set the archiver
+            let ar = cc.replace("-gcc", "-ar");
+            if std::path::Path::new(&ar).exists() {
+                build.archiver(&ar);
+            }
+        } else {
+            eprintln!("neo-lvgl-sys: WARNING: Could not find ESP cross-compiler");
+        }
+    }
+
     for source in &sources {
         build.file(source);
     }
 
     build.compile("lvgl");
+
+    // Explicitly emit link directives (cc crate should do this, but ESP-IDF cross-compilation
+    // can have issues finding the library)
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
+    println!("cargo:rustc-link-lib=static=lvgl");
+
+    // Debug: print info about what was built
+    let lib_path = out_dir.join("liblvgl.a");
+    if lib_path.exists() {
+        eprintln!("neo-lvgl-sys: Built liblvgl.a at {}", lib_path.display());
+    } else {
+        eprintln!(
+            "neo-lvgl-sys: WARNING: liblvgl.a not found at {}",
+            lib_path.display()
+        );
+    }
+    eprintln!("neo-lvgl-sys: TARGET={}", target);
+    if let Ok(cc) = env::var("TARGET_CC") {
+        eprintln!("neo-lvgl-sys: TARGET_CC={}", cc);
+    }
 
     // Generate bindings
     let mut builder = bindgen::Builder::default()
@@ -65,8 +108,7 @@ fn main() {
         // Layout hints
         .layout_tests(false)
         .derive_default(true)
-        .derive_debug(false)
-;
+        .derive_debug(false);
 
     // Add target-specific clang arguments
     let target = env::var("TARGET").unwrap_or_default();
@@ -86,9 +128,7 @@ fn main() {
         builder = configure_espidf_bindgen(builder, &target);
     }
 
-    let bindings = builder
-        .generate()
-        .expect("Unable to generate bindings");
+    let bindings = builder.generate().expect("Unable to generate bindings");
 
     bindings
         .write_to_file(out_dir.join("bindings.rs"))
@@ -118,12 +158,14 @@ fn configure_espidf_bindgen(builder: bindgen::Builder, target: &str) -> bindgen:
     };
 
     // Check for user-specified toolchain version via environment variable
-    let requested_version = env::var("ESP_TOOLCHAIN_VERSION").ok();
+    let requested_version = env::var("ESP_IDF_VERSION").ok();
 
     // Try multiple possible locations for the toolchain
     let possible_bases = [
         // esp-rs Rust toolchain location
-        home_path.join(".rustup/toolchains/esp").join(toolchain_name),
+        home_path
+            .join(".rustup/toolchains/esp")
+            .join(toolchain_name),
         // Standalone ESP-IDF location
         home_path.join(".espressif/tools").join(toolchain_name),
     ];
@@ -240,6 +282,131 @@ fn try_find_sysroot_in_version(
         // Check for actual newlib header, not just any include directory
         if sysroot.join("include/stdint.h").exists() {
             return Some(sysroot);
+        }
+    }
+
+    None
+}
+
+/// Find the ESP cross-compiler for the given target
+fn find_esp_compiler(target: &str) -> Option<String> {
+    // 1. Check TARGET_CC environment variable first
+    if let Ok(cc) = env::var("TARGET_CC") {
+        if std::path::Path::new(&cc).exists() {
+            return Some(cc);
+        }
+    }
+
+    // 2. Check CC_<target> environment variable
+    let target_env = target.replace('-', "_");
+    if let Ok(cc) = env::var(format!("CC_{}", target_env)) {
+        if std::path::Path::new(&cc).exists() {
+            return Some(cc);
+        }
+    }
+
+    // Determine compiler prefix based on target
+    let prefix = if target.contains("xtensa-esp32s3") {
+        "xtensa-esp32s3-elf"
+    } else if target.contains("xtensa-esp32s2") {
+        "xtensa-esp32s2-elf"
+    } else if target.contains("xtensa-esp32") {
+        "xtensa-esp32-elf"
+    } else if target.contains("riscv32") {
+        "riscv32-esp-elf"
+    } else {
+        "xtensa-esp-elf" // generic fallback
+    };
+
+    let gcc_name = format!("{}-gcc", prefix);
+
+    // 3. Check if it's in PATH
+    if let Ok(output) = std::process::Command::new("which").arg(&gcc_name).output() {
+        if output.status.success() {
+            if let Ok(path) = String::from_utf8(output.stdout) {
+                let path = path.trim();
+                if !path.is_empty() {
+                    return Some(path.to_string());
+                }
+            }
+        }
+    }
+
+    // 4. Look in common ESP-IDF toolchain locations
+    let home = env::var("HOME").unwrap_or_default();
+
+    // Check for .embuild directory (used by esp-idf-sys)
+    // Structure: .embuild/espressif/tools/xtensa-esp-elf/<version>/xtensa-esp-elf/bin/
+    if let Ok(embuild_dir) = env::var("ESP_IDF_TOOLS_INSTALL_DIR") {
+        if let Some(cc) = find_compiler_in_embuild(&PathBuf::from(embuild_dir), prefix) {
+            return Some(cc);
+        }
+    }
+
+    // Also check OUT_DIR parent directories for .embuild
+    if let Ok(out_dir) = env::var("OUT_DIR") {
+        let mut path = PathBuf::from(&out_dir);
+        // Walk up to find the project root
+        for _ in 0..10 {
+            let embuild = path.join(".embuild/espressif/tools");
+            if embuild.exists() {
+                if let Some(cc) = find_compiler_in_embuild(&embuild, prefix) {
+                    return Some(cc);
+                }
+            }
+            if !path.pop() {
+                break;
+            }
+        }
+    }
+
+    // Check ~/.espressif/tools
+    let espressif_tools = PathBuf::from(&home).join(".espressif/tools");
+    if let Some(cc) = find_compiler_in_embuild(&espressif_tools, prefix) {
+        return Some(cc);
+    }
+
+    None
+}
+
+/// Find compiler in embuild/espressif tools directory structure
+fn find_compiler_in_embuild(tools_dir: &PathBuf, prefix: &str) -> Option<String> {
+    // Try both xtensa-esp-elf (generic) and specific prefixes
+    let toolchain_names = ["xtensa-esp-elf", prefix];
+
+    for toolchain_name in &toolchain_names {
+        let toolchain_dir = tools_dir.join(toolchain_name);
+        if !toolchain_dir.exists() {
+            continue;
+        }
+
+        // Find version directories
+        if let Ok(entries) = std::fs::read_dir(&toolchain_dir) {
+            let mut versions: Vec<_> = entries.filter_map(|e| e.ok()).collect();
+            // Sort descending to get latest version first
+            versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+
+            for version_entry in versions {
+                // The compiler is at: <version>/xtensa-esp-elf/bin/xtensa-esp-elf-gcc
+                // or: <version>/xtensa-esp32s3-elf/bin/xtensa-esp32s3-elf-gcc
+                let bin_paths = [
+                    version_entry.path().join("xtensa-esp-elf/bin"),
+                    version_entry.path().join(format!("{}/bin", prefix)),
+                    version_entry.path().join("bin"),
+                ];
+
+                for bin_path in &bin_paths {
+                    let gcc = bin_path.join(format!("{}-gcc", prefix));
+                    if gcc.exists() {
+                        return Some(gcc.to_string_lossy().to_string());
+                    }
+                    // Also try generic xtensa-esp-elf-gcc
+                    let gcc = bin_path.join("xtensa-esp-elf-gcc");
+                    if gcc.exists() {
+                        return Some(gcc.to_string_lossy().to_string());
+                    }
+                }
+            }
         }
     }
 
