@@ -283,6 +283,15 @@
 #define LV_USE_FLEX 1
 #define LV_USE_GRID 1
 
+/*==================
+ * OTHERS
+ *==================*/
+
+#define LV_USE_FRAGMENT 1
+#define LV_USE_OBSERVER 1
+#define LV_USE_SNAPSHOT 0
+#define LV_USE_MONKEY   0
+
 /*====================
  * 3RD PARTY LIBRARIES
  *====================*/

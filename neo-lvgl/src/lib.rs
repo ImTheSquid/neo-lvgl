@@ -38,6 +38,7 @@ pub mod color;
 pub mod display;
 pub mod event;
 pub mod font;
+pub mod fragment;
 pub mod group;
 pub mod indev;
 pub mod layout;

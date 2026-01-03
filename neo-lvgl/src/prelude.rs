@@ -55,6 +55,10 @@ pub use crate::group::Group;
 // Timer
 pub use crate::timer::Timer;
 
+// Fragment
+#[cfg(feature = "alloc")]
+pub use crate::fragment::{Fragment, FragmentImpl, FragmentManager};
+
 // Font
 pub use crate::font::Font;
 
